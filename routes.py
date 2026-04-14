@@ -759,8 +759,8 @@ def ai_tutor_send():
         app.logger.error(f"AI tutor send failed: {str(e)}")
         return jsonify({
             'success': False,
-            'error': 'AI Tutor request failed. Please verify GEMINI_API_KEY and GEMINI_MODEL in Vercel.'
-        }), 500
+            'error': str(e)
+        }), 503
 
 @app.route('/ai-tutor/clear', methods=['POST'])
 @login_required

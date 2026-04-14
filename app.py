@@ -4,7 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 import requests
 import json
@@ -24,6 +24,16 @@ def nl2br_filter(value):
         return ''
     escaped = escape(value)
     return Markup(str(escaped).replace('\n', '<br>\n'))
+
+@app.template_filter('chat_time')
+def chat_time_filter(value):
+    if value is None:
+        return ''
+    eastern = pytz.timezone('US/Eastern')
+    dt_value = value
+    if dt_value.tzinfo is None:
+        dt_value = dt_value.replace(tzinfo=timezone.utc)
+    return dt_value.astimezone(eastern).strftime('%I:%M %p')
 
 # Configuration from environment variables
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-change-in-production')
@@ -344,7 +354,7 @@ def generate_ai_response(user_message, conversation_history=None):
     
     if not api_key or 'add_your' in api_key.lower() or 'your_' in api_key.lower():
         app.logger.error('GEMINI_API_KEY is missing or placeholder value')
-        return "AI Tutor is not configured yet. Please set a valid GEMINI_API_KEY in Vercel environment variables."
+        raise RuntimeError("AI Tutor is not configured yet. Please set a valid GEMINI_API_KEY in Vercel environment variables.")
     
     try:
         response = call_gemini_generate(api_key, model, user_message, api_version='v1beta')
@@ -373,7 +383,7 @@ def generate_ai_response(user_message, conversation_history=None):
             
             if not ai_response:
                 app.logger.error('Gemini response contained no candidate text')
-                return "AI Tutor returned an empty response. Please try asking again."
+                raise RuntimeError("AI Tutor returned an empty response. Please try asking again.")
             
             return ai_response
         else:
@@ -400,14 +410,16 @@ def generate_ai_response(user_message, conversation_history=None):
             app.logger.error(
                 f"Gemini API non-200 response ({response.status_code}) model='{model}': {error_message}"
             )
-            return f"AI Tutor service error: {error_message}"
+            raise RuntimeError(f"AI Tutor service error: {error_message}")
     
     except requests.exceptions.Timeout:
         app.logger.error('Gemini API timeout')
-        return "AI Tutor request timed out. Please try again in a few seconds."
+        raise RuntimeError("AI Tutor request timed out. Please try again in a few seconds.")
+    except RuntimeError:
+        raise
     except Exception as e:
         app.logger.error(f"Gemini API error: {str(e)}")
-        return "AI Tutor is temporarily unavailable due to a server error."
+        raise RuntimeError("AI Tutor is temporarily unavailable due to a server error.")
 
 # Import routes after app initialization
 from routes import *

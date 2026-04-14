@@ -44,7 +44,7 @@
                         {% endif %}
                     </div>
                     <div class="message-time">
-                        {{ message.created_at.strftime('%I:%M %p') }}
+                        {{ message.created_at|chat_time }}
                     </div>
                 </div>
             </div>
