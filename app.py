@@ -25,8 +25,16 @@ database_url = os.getenv('DATABASE_URL')
 if database_url and database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
+# Neon/PostgreSQL requires SSL in production environments like Vercel.
+if database_url and database_url.startswith('postgresql://') and 'sslmode=' not in database_url:
+    separator = '&' if '?' in database_url else '?'
+    database_url = f"{database_url}{separator}sslmode=require"
+
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///marinet.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True
+}
 app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
 
@@ -283,7 +291,16 @@ def internal_error(error):
     db.session.rollback()
     return render_template('500.html'), 500
 
+def ensure_database_initialized():
+    try:
+        with app.app_context():
+            db.create_all()
+    except Exception as e:
+        app.logger.error(f"Database initialization failed: {str(e)}")
+
+# Ensure tables exist on serverless cold starts (Vercel imports module, not __main__).
+ensure_database_initialized()
+
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
+    ensure_database_initialized()
     app.run(debug=False)

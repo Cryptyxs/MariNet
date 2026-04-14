@@ -8,6 +8,7 @@ import uuid
 from app import app, db, User, Post, Vote, Group, GroupPost, AiConversation, AiMessage, generate_ai_response, group_members, Tag, Notification
 import re
 from collections import Counter
+from sqlalchemy.exc import SQLAlchemyError
 
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import random
@@ -173,9 +174,15 @@ def register():
             password=generate_password_hash(password),
             avatar_url='/static/default_avatar.jpg'
         )
-        
-        db.session.add(new_user)
-        db.session.commit()
+
+        try:
+            db.session.add(new_user)
+            db.session.commit()
+        except SQLAlchemyError as e:
+            db.session.rollback()
+            app.logger.error(f"Registration database error: {str(e)}")
+            flash('Registration is temporarily unavailable. Please try again in a moment.', 'error')
+            return render_template('register.html', error='Registration is temporarily unavailable. Please try again.')
         
         login_user(new_user)
         flash('Registration successful', 'success')

@@ -8,47 +8,47 @@
         window.location.href = "{{ url_for('feed') }}";
     </script>
 {% else %}
-<div class="row align-items-center g-5 py-5">
-    <div class="col-lg-6">
-        <h1 class="display-4 fw-bold mb-4">Connect with your peers on MariNet</h1>
-        <p class="fs-5 mb-4">
+<section class="landing-page row align-items-center g-5 py-5">
+    <div class="col-lg-6 landing-copy">
+        <h1 class="display-4 fw-bold mb-4 landing-title">Connect with your peers on MariNet</h1>
+        <p class="fs-5 mb-4 landing-subtitle">
             MariNet is a social platform designed for students and professionals to share ideas, connect with peers, and expand their network.
         </p>
-        <div class="d-grid gap-3 d-flex">
+        <div class="d-grid gap-3 d-flex landing-cta-row">
             <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg px-4 gap-3">Sign Up</a>
             <a href="{{ url_for('login') }}" class="btn btn-outline-secondary btn-lg px-4">Sign In</a>
         </div>
     </div>
     <div class="col-lg-6">
-        <div>
-            <div class="card-body p-5">
+        <div class="landing-features-wrap">
+            <div class="landing-features-card p-5">
                 <h2 class="card-title mb-4">Features</h2>
-                <ul class="list-group list-group-flush bg-shadow">
-                    <li class="list-group-item d-flex align-items-center py-3 post-card rounded-3" style="background-color: var(--bg-main); box-shadow: 0 4px 6px -1px rgba(255, 255, 255, 0.4);">
+                <ul class="list-group list-group-flush landing-feature-list">
+                    <li class="list-group-item d-flex align-items-center py-3 landing-feature-item rounded-3">
                         <i class="bi bi-people-fill fs-4 text-primary me-3"></i>
-                        <div class="card-body" style="background-color: var(--bg-main);">
-                            <h5 class="mb-1" style="color: var(--text-main);">Connect with peers</h5>
-                            <p class="mb-0" style="color: var(--text-main);">Build your professional network</p>
+                        <div class="card-body p-0">
+                            <h5 class="mb-1">Connect with peers</h5>
+                            <p class="mb-0">Build your professional network</p>
                         </div>
                     </li>
-                    <li class="list-group-item d-flex align-items-center py-3 post-card rounded-3" style="background-color: var(--bg-main); box-shadow: 0 4px 6px -1px rgba(255, 255, 255, 0.4);">
+                    <li class="list-group-item d-flex align-items-center py-3 landing-feature-item rounded-3">
                         <i class="bi bi-chat-square-text-fill fs-4 text-primary me-3"></i>
-                        <div class="card-body" style="background-color: var(--bg-main);">
-                            <h5 class="mb-1" style="color: var(--text-main);">Share ideas</h5>
-                            <p class="mb-0" style="color: var(--text-main);">Post thoughts, images, and more</p>
+                        <div class="card-body p-0">
+                            <h5 class="mb-1">Share ideas</h5>
+                            <p class="mb-0">Post thoughts, images, and more</p>
                         </div>
                     </li>
-                    <li class="list-group-item d-flex align-items-center py-3 post-card rounded-3" style="background-color: var(--bg-main); box-shadow: 0 4px 6px -1px rgba(255, 255, 255, 0.4);">
+                    <li class="list-group-item d-flex align-items-center py-3 landing-feature-item rounded-3">
                         <i class="bi bi-robot fs-4 text-primary me-3"></i>
-                        <div style="card-body">     
-                            <h5 class="mb-1" style="color: var(--text-main);">AI Tutor</h5>
-                            <p class="mb-0" style="color: var(--text-main);">Get help with your studies</p>
+                        <div class="card-body p-0">
+                            <h5 class="mb-1">AI Tutor</h5>
+                            <p class="mb-0">Get help with your studies</p>
                         </div>
                     </li>
                 </ul>
             </div>
         </div>
     </div>
-</div>
+</section>
 {% endif %}
 {% endblock %} 
