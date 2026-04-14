@@ -151,6 +151,12 @@ class UserAvatar(db.Model):
 
     user = db.relationship('User', backref=db.backref('avatar_blob', uselist=False, cascade='all, delete-orphan'))
 
+class UploadedImage(db.Model):
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    mime_type = db.Column(db.String(100), nullable=False)
+    image_data = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=get_est_time)
+
 class Post(db.Model):
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     content = db.Column(db.Text, nullable=False)

@@ -5,7 +5,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import uuid
-from app import app, db, User, UserAvatar, Post, Vote, Group, GroupPost, AiConversation, AiMessage, generate_ai_response, group_members, Tag, Notification
+from app import app, db, User, UserAvatar, UploadedImage, Post, Vote, Group, GroupPost, AiConversation, AiMessage, generate_ai_response, group_members, Tag, Notification
 import re
 from collections import Counter
 from sqlalchemy.exc import SQLAlchemyError
@@ -87,13 +87,42 @@ def allowed_file(filename):
 def save_image(file):
     if not file:
         return None
-    
-    if file and allowed_file(file.filename):
-        filename = secure_filename(f"{uuid.uuid4()}_{file.filename}")
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(file_path)
-        return '/static/uploads/' + filename
-    return None
+
+    if not allowed_file(file.filename):
+        return None
+
+    allowed_mimetypes = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
+    if file.mimetype not in allowed_mimetypes:
+        return None
+
+    file.seek(0, os.SEEK_END)
+    file_size = file.tell()
+    file.seek(0)
+
+    # Keep upload size reasonable for DB-backed storage.
+    if file_size > 5 * 1024 * 1024:
+        return None
+
+    image_bytes = file.read()
+    encoded = base64.b64encode(image_bytes).decode('ascii')
+
+    media = UploadedImage(mime_type=file.mimetype, image_data=encoded)
+    db.session.add(media)
+    db.session.flush()
+    return f'/media/{media.id}'
+
+@app.route('/media/<media_id>')
+def media(media_id):
+    media_blob = UploadedImage.query.filter_by(id=media_id).first()
+    if not media_blob or not media_blob.image_data:
+        return '', 404
+
+    try:
+        image_bytes = base64.b64decode(media_blob.image_data)
+    except Exception:
+        return '', 404
+
+    return Response(image_bytes, mimetype=media_blob.mime_type or 'image/jpeg')
 
 def save_avatar_image(file, user_id):
     if not file or file.filename == '':
