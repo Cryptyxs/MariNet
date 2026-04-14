@@ -20,7 +20,7 @@
                 <h1 class="display-6 fw-bold mb-2">{{ user.username }}</h1>
                 <div class="d-flex align-items-center text-muted mb-3">
                     <span class="badge bg-light text-dark me-2 px-3 py-2 rounded-pill">
-                        <i class="bi bi-calendar3 me-1"></i> Joined {{ user.created_at.strftime('%B %Y') }}
+                        <i class="bi bi-calendar3 me-1"></i> Joined {{ user.created_at|format_local('%B %Y') }}
                     </span>
                     <span class="badge bg-light text-dark px-3 py-2 rounded-pill">
                         <i class="bi bi-pencil-square me-1"></i> {{ posts|length }} Posts
@@ -54,7 +54,7 @@
                             <img src="{{ user.avatar_url }}" alt="{{ user.username }}" class="avatar me-2">
                             <div>
                                 <h6 class="mb-0 fw-bold">{{ user.username }}</h6>
-                                <small class="text-muted">{{ post.created_at.strftime('%b %d, %Y at %I:%M %p') }}</small>
+                                <small class="text-muted">{{ post.created_at|format_local('%b %d, %Y at %I:%M %p') }}</small>
                             </div>
                         </div>
                         <p class="card-text">{{ post.content|mention_links }}</p>
@@ -107,7 +107,7 @@
                         </div>
                         <div>
                             <p class="mb-0" style="color: var(--text-main);"><strong>Joined</strong></p>
-                            <p class="mb-0" style="color: var(--text-main);">{{ user.created_at.strftime('%B %d, %Y') }}</p>
+                            <p class="mb-0" style="color: var(--text-main);">{{ user.created_at|format_local('%B %d, %Y') }}</p>
                         </div>                        
                     </div>
                     

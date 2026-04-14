@@ -21,7 +21,7 @@
                             {% endif %}
                             <div>
                                 <p class="mb-1">{{ notification.content }}</p>
-                                <small class="card-title">{{ notification.created_at.strftime('%b %d, %Y at %H:%M') }}</small>
+                                <small class="card-title">{{ notification.created_at|format_local('%b %d, %Y at %H:%M') }}</small>
                             </div>
                         </div>
                         {% if notification.post_id or notification.group_post_id %}

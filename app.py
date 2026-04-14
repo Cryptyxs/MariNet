@@ -19,6 +19,25 @@ load_dotenv('.env.local')
 # Initialize Flask app
 app = Flask(__name__)
 
+APP_TIMEZONE = os.getenv('APP_TIMEZONE', 'US/Eastern')
+LOCAL_TZ = pytz.timezone(APP_TIMEZONE)
+
+
+def to_local_time(dt_value):
+    if dt_value is None:
+        return None
+    if dt_value.tzinfo is None:
+        # DB timestamps are stored without tz info; treat as UTC and convert for display.
+        dt_value = dt_value.replace(tzinfo=timezone.utc)
+    return dt_value.astimezone(LOCAL_TZ)
+
+
+@app.template_filter('format_local')
+def format_local_filter(value, fmt='%b %d, %Y at %I:%M %p'):
+    if value is None:
+        return ''
+    return to_local_time(value).strftime(fmt)
+
 @app.template_filter('nl2br')
 def nl2br_filter(value):
     if value is None:
@@ -30,11 +49,7 @@ def nl2br_filter(value):
 def chat_time_filter(value):
     if value is None:
         return ''
-    eastern = pytz.timezone('US/Eastern')
-    dt_value = value
-    if dt_value.tzinfo is None:
-        dt_value = dt_value.replace(tzinfo=timezone.utc)
-    return dt_value.astimezone(eastern).strftime('%I:%M %p')
+    return to_local_time(value).strftime('%I:%M %p')
 
 # Configuration from environment variables
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-change-in-production')

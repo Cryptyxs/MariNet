@@ -71,7 +71,7 @@
                             <img src="{{ post.user.avatar_url }}" alt="{{ post.user.username }}" class="avatar me-2">
                             <div>
                                 <h6 class="mb-0">{{ post.user.username }}</h6>
-                                <small class="card-title">{{ post.created_at.strftime('%b %d, %Y at %I:%M %p') }}</small>
+                                <small class="card-title">{{ post.created_at|format_local('%b %d, %Y at %I:%M %p') }}</small>
                             </div>
                         </div>
                         <p class="card-text">{{ post.content|mention_links }}</p>
@@ -107,7 +107,7 @@
                 <div class="card-body post-card">
                     <p><i class="bi bi-info-circle me-2"></i> {{ group.description }}</p>
                     <p><i class="bi bi-people me-2"></i> {{ group.members_count }} members</p>
-                    <p><i class="bi bi-calendar-event me-2"></i> Created on {{ group.created_at.strftime('%b %d, %Y') }}</p>
+                    <p><i class="bi bi-calendar-event me-2"></i> Created on {{ group.created_at|format_local('%b %d, %Y') }}</p>
                 </div>
             </div>
             

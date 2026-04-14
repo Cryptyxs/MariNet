@@ -50,7 +50,7 @@
                             <img src="{{ post.user.avatar_url }}" alt="{{ post.user.username }}" class="avatar me-2">
                             <div>
                                 <h6 class="mb-0 fw-bold">{{ post.user.username }}</h6>
-                                <small class="text-muted">{{ post.created_at.strftime('%b %d, %Y at %I:%M %p') }}</small>
+                                <small class="text-muted">{{ post.created_at|format_local('%b %d, %Y at %I:%M %p') }}</small>
                             </div>
                             <div class="dropdown ms-auto">
                                 <button class="btn btn-sm btn-light rounded-circle" type="button" id="dropdownMenuButton{{ post.id }}" data-bs-toggle="dropdown" aria-expanded="false">
