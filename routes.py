@@ -755,32 +755,12 @@ def ai_tutor_send():
             }
         })
     except Exception as e:
-        fallback_response = "I'm sorry, I'm having trouble processing your request right now. Please try again in a moment."
-        
-        ai_message = AiMessage(
-            conversation_id=conversation.id,
-            content=fallback_response,
-            is_user=False
-        )
-        db.session.add(ai_message)
-        db.session.commit()
-        
-        process_mentions(message_content)
-        
+        db.session.rollback()
+        app.logger.error(f"AI tutor send failed: {str(e)}")
         return jsonify({
-            'success': True,
-            'user_message': {
-                'id': user_message.id,
-                'content': user_message.content,
-                'created_at': user_message.created_at.strftime('%Y-%m-%d %H:%M:%S')
-            },
-            'ai_message': {
-                'id': ai_message.id,
-                'content': fallback_response,
-                'created_at': ai_message.created_at.strftime('%Y-%m-%d %H:%M:%S')
-            },
-            'error': str(e)
-        })
+            'success': False,
+            'error': 'AI Tutor request failed. Please verify GEMINI_API_KEY and GEMINI_MODEL in Vercel.'
+        }), 500
 
 @app.route('/ai-tutor/clear', methods=['POST'])
 @login_required

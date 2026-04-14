@@ -241,7 +241,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 addMessage(data.ai_message, false);
             } else {
                 // Show error
-                addMessage({ content: "Sorry, I'm having trouble processing your request right now." }, false);
+                addMessage({ content: data.error || "AI Tutor request failed." }, false);
             }
             
             // Re-enable the form
@@ -256,7 +256,7 @@ document.addEventListener('DOMContentLoaded', function() {
             typingIndicator.style.display = 'none';
             
             // Show error message
-            addMessage({ content: "Sorry, I'm having trouble connecting to the server right now." }, false);
+            addMessage({ content: "AI Tutor request failed. Check server configuration and logs." }, false);
             
             // Re-enable the form
             messageInput.disabled = false;

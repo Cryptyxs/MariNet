@@ -48,6 +48,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
 
 # API Keys from environment variables
 app.config['GEMINI_API_KEY'] = os.getenv('GEMINI_API_KEY')
+app.config['GEMINI_MODEL'] = os.getenv('GEMINI_MODEL', 'gemini-1.5-flash')
 app.config['QWEN_API_KEY'] = os.getenv('QWEN_API_KEY')
 
 # Create upload folder if it doesn't exist
@@ -237,11 +238,13 @@ def load_user(user_id):
 # Gemini API integration
 def generate_ai_response(user_message, conversation_history=None):
     api_key = app.config.get('GEMINI_API_KEY')
+    model = app.config.get('GEMINI_MODEL', 'gemini-1.5-flash')
     
-    if not api_key:
-        return "API key not configured. Please set GEMINI_API_KEY environment variable."
-    
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+    if not api_key or 'add_your' in api_key.lower() or 'your_' in api_key.lower():
+        app.logger.error('GEMINI_API_KEY is missing or placeholder value')
+        return "AI Tutor is not configured yet. Please set a valid GEMINI_API_KEY in Vercel environment variables."
+
+    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     
     payload = {
         "contents": [
@@ -254,9 +257,12 @@ def generate_ai_response(user_message, conversation_history=None):
     try:
         response = requests.post(
             api_url,
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "x-goog-api-key": api_key
+            },
             data=json.dumps(payload),
-            timeout=10
+            timeout=20
         )
         
         if response.status_code == 200:
@@ -264,17 +270,28 @@ def generate_ai_response(user_message, conversation_history=None):
             ai_response = response_data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
             
             if not ai_response:
-                return "I couldn't generate a response. Please try rephrasing your question."
+                app.logger.error('Gemini response contained no candidate text')
+                return "AI Tutor returned an empty response. Please try asking again."
             
             return ai_response
         else:
-            return "I'm having trouble connecting to my knowledge base. Please try again in a moment."
+            error_message = response.text[:300]
+            try:
+                error_json = response.json()
+                error_message = error_json.get('error', {}).get('message', error_message)
+            except Exception:
+                pass
+            app.logger.error(
+                f"Gemini API non-200 response ({response.status_code}): {error_message}"
+            )
+            return f"AI Tutor service error: {error_message}"
     
     except requests.exceptions.Timeout:
-        return "Request timed out. Please try again."
+        app.logger.error('Gemini API timeout')
+        return "AI Tutor request timed out. Please try again in a few seconds."
     except Exception as e:
         app.logger.error(f"Gemini API error: {str(e)}")
-        return "Sorry, I encountered an error. Please try again later."
+        return "AI Tutor is temporarily unavailable due to a server error."
 
 # Import routes after app initialization
 from routes import *
