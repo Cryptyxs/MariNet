@@ -50,6 +50,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
 app.config['GEMINI_API_KEY'] = os.getenv('GEMINI_API_KEY')
 app.config['GEMINI_MODEL'] = os.getenv('GEMINI_MODEL', 'gemini-1.5-flash')
 app.config['QWEN_API_KEY'] = os.getenv('QWEN_API_KEY')
+app.config['GEMINI_MODEL_RESOLVED'] = None
 
 # Create upload folder if it doesn't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -236,16 +237,58 @@ def load_user(user_id):
     return User.query.get(user_id)
 
 # Gemini API integration
-def generate_ai_response(user_message, conversation_history=None):
-    api_key = app.config.get('GEMINI_API_KEY')
-    model = app.config.get('GEMINI_MODEL', 'gemini-1.5-flash')
-    
-    if not api_key or 'add_your' in api_key.lower() or 'your_' in api_key.lower():
-        app.logger.error('GEMINI_API_KEY is missing or placeholder value')
-        return "AI Tutor is not configured yet. Please set a valid GEMINI_API_KEY in Vercel environment variables."
+def normalize_gemini_model_name(model_name):
+    if not model_name:
+        return ''
+    return model_name.replace('models/', '').strip()
 
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-    
+def list_generate_content_models(api_key, api_version='v1beta'):
+    url = f"https://generativelanguage.googleapis.com/{api_version}/models"
+    try:
+        response = requests.get(
+            url,
+            headers={"x-goog-api-key": api_key},
+            timeout=15
+        )
+        if response.status_code != 200:
+            app.logger.error(f"ListModels failed on {api_version}: {response.status_code} - {response.text[:300]}")
+            return []
+
+        data = response.json()
+        models = data.get('models', [])
+        supported = []
+
+        for model in models:
+            methods = model.get('supportedGenerationMethods', [])
+            if 'generateContent' in methods:
+                supported.append(normalize_gemini_model_name(model.get('name', '')))
+
+        return [m for m in supported if m]
+    except Exception as e:
+        app.logger.error(f"ListModels request failed on {api_version}: {str(e)}")
+        return []
+
+def choose_best_gemini_model(preferred_model, models):
+    if not models:
+        return None
+
+    preferred = normalize_gemini_model_name(preferred_model)
+
+    if preferred in models:
+        return preferred
+
+    for m in models:
+        if preferred and preferred in m:
+            return m
+
+    for m in models:
+        if 'flash' in m:
+            return m
+
+    return models[0]
+
+def call_gemini_generate(api_key, model, user_message, api_version='v1beta'):
+    api_url = f"https://generativelanguage.googleapis.com/{api_version}/models/{model}:generateContent"
     payload = {
         "contents": [
             {
@@ -253,17 +296,48 @@ def generate_ai_response(user_message, conversation_history=None):
             }
         ]
     }
+
+    response = requests.post(
+        api_url,
+        headers={
+            "Content-Type": "application/json",
+            "x-goog-api-key": api_key
+        },
+        data=json.dumps(payload),
+        timeout=20
+    )
+    return response
+
+def generate_ai_response(user_message, conversation_history=None):
+    api_key = app.config.get('GEMINI_API_KEY')
+    configured_model = normalize_gemini_model_name(app.config.get('GEMINI_MODEL', 'gemini-1.5-flash'))
+    resolved_model = normalize_gemini_model_name(app.config.get('GEMINI_MODEL_RESOLVED'))
+    model = resolved_model or configured_model
+    
+    if not api_key or 'add_your' in api_key.lower() or 'your_' in api_key.lower():
+        app.logger.error('GEMINI_API_KEY is missing or placeholder value')
+        return "AI Tutor is not configured yet. Please set a valid GEMINI_API_KEY in Vercel environment variables."
     
     try:
-        response = requests.post(
-            api_url,
-            headers={
-                "Content-Type": "application/json",
-                "x-goog-api-key": api_key
-            },
-            data=json.dumps(payload),
-            timeout=20
-        )
+        response = call_gemini_generate(api_key, model, user_message, api_version='v1beta')
+
+        if response.status_code == 404:
+            error_message = response.text[:500]
+            try:
+                error_json = response.json()
+                error_message = error_json.get('error', {}).get('message', error_message)
+            except Exception:
+                pass
+
+            if 'not found for API version' in error_message or 'not supported for generateContent' in error_message:
+                available = list_generate_content_models(api_key, api_version='v1beta')
+                selected = choose_best_gemini_model(configured_model, available)
+
+                if selected and selected != model:
+                    app.logger.warning(f"Switching Gemini model from '{model}' to '{selected}'")
+                    app.config['GEMINI_MODEL_RESOLVED'] = selected
+                    response = call_gemini_generate(api_key, selected, user_message, api_version='v1beta')
+                    model = selected
         
         if response.status_code == 200:
             response_data = response.json()
@@ -282,7 +356,7 @@ def generate_ai_response(user_message, conversation_history=None):
             except Exception:
                 pass
             app.logger.error(
-                f"Gemini API non-200 response ({response.status_code}): {error_message}"
+                f"Gemini API non-200 response ({response.status_code}) model='{model}': {error_message}"
             )
             return f"AI Tutor service error: {error_message}"
     
