@@ -132,6 +132,13 @@ class User(db.Model, UserMixin):
     def __repr__(self):
         return f'<User {self.username}>'
 
+class UserAvatar(db.Model):
+    user_id = db.Column(db.String(36), db.ForeignKey('user.id'), primary_key=True)
+    mime_type = db.Column(db.String(100), nullable=False)
+    image_data = db.Column(db.Text, nullable=False)
+
+    user = db.relationship('User', backref=db.backref('avatar_blob', uselist=False, cascade='all, delete-orphan'))
+
 class Post(db.Model):
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     content = db.Column(db.Text, nullable=False)

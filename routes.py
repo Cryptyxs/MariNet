@@ -1,14 +1,15 @@
 import os
-from flask import render_template, request, redirect, url_for, flash, jsonify, session
+from flask import render_template, request, redirect, url_for, flash, jsonify, session, Response
 from flask_login import login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import uuid
-from app import app, db, User, Post, Vote, Group, GroupPost, AiConversation, AiMessage, generate_ai_response, group_members, Tag, Notification
+from app import app, db, User, UserAvatar, Post, Vote, Group, GroupPost, AiConversation, AiMessage, generate_ai_response, group_members, Tag, Notification
 import re
 from collections import Counter
 from sqlalchemy.exc import SQLAlchemyError
+import base64
 
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import random
@@ -93,6 +94,50 @@ def save_image(file):
         file.save(file_path)
         return '/static/uploads/' + filename
     return None
+
+def save_avatar_image(file, user_id):
+    if not file or file.filename == '':
+        return None, 'No image selected.'
+
+    if not allowed_file(file.filename):
+        return None, 'Only JPG, PNG, and GIF files are allowed.'
+
+    allowed_mimetypes = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
+    if file.mimetype not in allowed_mimetypes:
+        return None, 'Unsupported image format.'
+
+    file.seek(0, os.SEEK_END)
+    file_size = file.tell()
+    file.seek(0)
+
+    if file_size > 2 * 1024 * 1024:
+        return None, 'Profile picture must be 2MB or smaller.'
+
+    image_bytes = file.read()
+    encoded = base64.b64encode(image_bytes).decode('ascii')
+
+    avatar_blob = UserAvatar.query.filter_by(user_id=user_id).first()
+    if not avatar_blob:
+        avatar_blob = UserAvatar(user_id=user_id, mime_type=file.mimetype, image_data=encoded)
+    else:
+        avatar_blob.mime_type = file.mimetype
+        avatar_blob.image_data = encoded
+
+    db.session.add(avatar_blob)
+    return f'/avatar/{user_id}', None
+
+@app.route('/avatar/<user_id>')
+def avatar(user_id):
+    avatar_blob = UserAvatar.query.filter_by(user_id=user_id).first()
+    if not avatar_blob or not avatar_blob.image_data:
+        return redirect(url_for('static', filename='default_avatar.jpg'))
+
+    try:
+        image_bytes = base64.b64decode(avatar_blob.image_data)
+    except Exception:
+        return redirect(url_for('static', filename='default_avatar.jpg'))
+
+    return Response(image_bytes, mimetype=avatar_blob.mime_type or 'image/jpeg')
 
 def process_mentions(content, post=None, group_post=None):
     if not content:
@@ -417,9 +462,11 @@ def settings():
         if 'avatar' in request.files:
             avatar_file = request.files['avatar']
             if avatar_file and avatar_file.filename != '':
-                avatar_url = save_image(avatar_file)
-                if avatar_url:
-                    current_user.avatar_url = avatar_url
+                avatar_url, avatar_error = save_avatar_image(avatar_file, current_user.id)
+                if avatar_error:
+                    flash(avatar_error, 'error')
+                    return render_template('settings.html', error=avatar_error)
+                current_user.avatar_url = avatar_url
         
         db.session.commit()
         flash('Profile updated successfully', 'success')

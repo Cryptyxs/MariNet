@@ -9,15 +9,10 @@
             <div class="col-md-3 text-center">
                 <div class="position-relative d-inline-block">
                     <img src="{{ user.avatar_url }}" alt="{{ user.username }}" class="profile-avatar mb-3">
-                    {% if current_user.is_authenticated and current_user.id == user.id %}
-                    <a href="{{ url_for('settings') }}" class="edit-avatar-btn">
-                        <i class="bi bi-pencil-fill"></i>
-                    </a>
-                    {% endif %}
                 </div>
                 {% if current_user.is_authenticated and current_user.id == user.id %}
                 <a href="{{ url_for('settings') }}" class="btn btn-outline-primary btn-sm rounded-pill">
-                    <i class="bi bi-pencil-square"></i> Edit Profile
+                    Edit Profile
                 </a>                
                 {% endif %}
             </div>
