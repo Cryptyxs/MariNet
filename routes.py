@@ -5,77 +5,86 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import uuid
-from app import app, db, User, UserAvatar, UploadedImage, Post, Vote, Group, GroupPost, AiConversation, AiMessage, generate_ai_response, group_members, Tag, Notification
+from app import app, db, User, UserAvatar, UploadedImage, Post, Vote, Group, GroupPost, AiConversation, AiMessage, AnonymousChatMessage, generate_ai_response, group_members, Tag, Notification
 import re
 from collections import Counter
 from sqlalchemy.exc import SQLAlchemyError
 import base64
 
-from flask_socketio import SocketIO, emit, join_room, leave_room
 import random
 import uuid
-
-# Initialize SocketIO with your Flask app
-socketio = SocketIO(app)
 
 # Anonymous name generation
 animal_names = ["Penguin", "Giraffe", "Koala", "Tiger", "Dolphin", "Eagle", "Fox", "Panda"]
 colors = ["Red", "Blue", "Green", "Purple", "Orange", "Teal", "Pink", "Yellow"]
 
-# Store for active anonymous users
-anonymous_users = {}
+def ensure_anonymous_identity():
+    if 'anonymous_id' not in session:
+        session['anonymous_id'] = str(uuid.uuid4())
+    if 'anonymous_name' not in session:
+        session['anonymous_name'] = f"{random.choice(colors)} {random.choice(animal_names)}"
+    return session['anonymous_name']
 
 @app.route('/anonymous_chat')
 @login_required
 def anonymous_chat():
-    
-    if 'anonymous_id' not in session or session['anonymous_id'] not in anonymous_users:
-        session['anonymous_id'] = str(uuid.uuid4())
-        random_name = f"{random.choice(colors)} {random.choice(animal_names)}"
-        anonymous_users[session['anonymous_id']] = {
-            'name': random_name,
-            'user_id': current_user.id
-        }
-    
+    random_name = ensure_anonymous_identity()
     return render_template('anonymous_chat.html', 
-                          anonymous_name=anonymous_users[session['anonymous_id']]['name'])
+                          anonymous_name=random_name)
 
-@socketio.on('join')
-def on_join(data):
-    room = data['room']
-    join_room(room)
-    emit('status', {
-        'username': 'System',
-        'message': f"{anonymous_users[session['anonymous_id']]['name']} has entered the chat",
-        'timestamp': datetime.now().strftime('%H:%M')
-    }, room=room)
+@app.route('/anonymous_chat/messages', methods=['GET'])
+@login_required
+def anonymous_chat_messages():
+    limit = min(max(request.args.get('limit', default=50, type=int), 1), 200)
+    messages = AnonymousChatMessage.query.order_by(AnonymousChatMessage.created_at.desc()).limit(limit).all()
+    messages = list(reversed(messages))
 
-@socketio.on('leave')
-def on_leave(data):
-    room = data['room']
-    leave_room(room)
-    emit('status', {
-        'username': 'System',
-        'message': f"{anonymous_users[session['anonymous_id']]['name']} has left the chat",
-        'timestamp': datetime.now().strftime('%H:%M')
-    }, room=room)
+    return jsonify({
+        'messages': [
+            {
+                'id': msg.id,
+                'username': msg.anonymous_name,
+                'message': msg.content,
+                'timestamp': msg.created_at.strftime('%I:%M %p')
+            }
+            for msg in messages
+        ]
+    })
 
-@socketio.on('message')
-def handle_message(data):
-    room = data['room']
-    emit('message', {
-        'username': anonymous_users[session['anonymous_id']]['name'],
-        'message': data['message'],
-        'timestamp': datetime.now().strftime('%H:%M')
-    }, room=room)
+@app.route('/anonymous_chat/messages', methods=['POST'])
+@login_required
+def anonymous_chat_send_message():
+    anonymous_name = ensure_anonymous_identity()
+    content = (request.form.get('message') or '').strip()
+
+    if not content:
+        return jsonify({'error': 'Message cannot be empty'}), 400
+    if len(content) > 1000:
+        return jsonify({'error': 'Message is too long'}), 400
+
+    new_message = AnonymousChatMessage(
+        anonymous_name=anonymous_name,
+        content=content
+    )
+    db.session.add(new_message)
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': {
+            'id': new_message.id,
+            'username': new_message.anonymous_name,
+            'message': new_message.content,
+            'timestamp': new_message.created_at.strftime('%I:%M %p')
+        }
+    })
 
 # Optional: Reset anonymous identity
 @app.route('/reset_anonymous_identity')
 @login_required
 def reset_anonymous_identity():
-    if 'anonymous_id' in session:
-        anonymous_users.pop(session['anonymous_id'], None)
-        session.pop('anonymous_id')
+    session.pop('anonymous_id', None)
+    session.pop('anonymous_name', None)
     
     return redirect(url_for('anonymous_chat'))
 

@@ -49,25 +49,29 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 <script>
     $(document).ready(function() {
-        // Connect to Socket.IO server
-        const socket = io();
-        const chatRoom = 'main'; // You can create multiple rooms later
-        
-        // Join chat room
-        socket.emit('join', {room: chatRoom});
-        
-        // Handle incoming messages
-        socket.on('message', function(data) {
-            addMessage(data.username, data.message, data.timestamp);
-        });
-        
-        // Handle status messages
-        socket.on('status', function(data) {
-            addStatusMessage(data.message, data.timestamp);
-        });
+        const renderedMessageIds = new Set();
+        let isSending = false;
+
+        function escapeHtml(text) {
+            return $('<div>').text(text).html();
+        }
+
+        function fetchMessages() {
+            $.get('/anonymous_chat/messages', { limit: 100 })
+                .done(function(data) {
+                    if (!data.messages) return;
+                    data.messages.forEach(function(msg) {
+                        if (!renderedMessageIds.has(msg.id)) {
+                            addMessage(msg.id, msg.username, msg.message, msg.timestamp);
+                        }
+                    });
+                })
+                .fail(function() {
+                    // Keep chat usable; polling will retry automatically.
+                });
+        }
         
         // Send message
         $('#message-form').submit(function(e) {
@@ -75,55 +79,53 @@
             const messageInput = $('#message-input');
             const message = messageInput.val().trim();
             
-            if (message !== '') {
-                socket.emit('message', {
-                    message: message,
-                    room: chatRoom
-                });
-                messageInput.val('');
+            if (message !== '' && !isSending) {
+                isSending = true;
+                $.post('/anonymous_chat/messages', { message: message })
+                    .done(function(data) {
+                        if (data.message) {
+                            addMessage(data.message.id, data.message.username, data.message.message, data.message.timestamp);
+                        }
+                        messageInput.val('');
+                    })
+                    .always(function() {
+                        isSending = false;
+                    });
             }
         });
-        
+
         // Add message to chat
-        function addMessage(username, message, timestamp) {
+        function addMessage(id, username, message, timestamp) {
+            if (renderedMessageIds.has(id)) {
+                return;
+            }
+
             const messageElement = `
-                <div class="message">
+                <div class="message" data-message-id="${id}">
                     <div class="message-header">
-                        <span class="username">${username}</span>
-                        <span class="timestamp">${timestamp}</span>
+                        <span class="username">${escapeHtml(username)}</span>
+                        <span class="timestamp">${escapeHtml(timestamp)}</span>
                     </div>
                     <div class="message-body">
-                        ${message}
+                        ${escapeHtml(message)}
                     </div>
                 </div>
             `;
+
+            renderedMessageIds.add(id);
             $('#chat-box').append(messageElement);
             scrollToBottom();
         }
-        
-        // Add status message
-        function addStatusMessage(message, timestamp) {
-            const statusElement = `
-                <div class="system-message">
-                    <div class="message-body">
-                        ${message} <span class="timestamp">${timestamp}</span>
-                    </div>
-                </div>
-            `;
-            $('#chat-box').append(statusElement);
-            scrollToBottom();
-        }
-        
+
         // Auto-scroll to bottom
         function scrollToBottom() {
             const chatBox = document.getElementById('chat-box');
             chatBox.scrollTop = chatBox.scrollHeight;
         }
-        
-        // Handle page unload
-        window.addEventListener('beforeunload', function() {
-            socket.emit('leave', {room: chatRoom});
-        });
+
+        // Initial load + polling
+        fetchMessages();
+        setInterval(fetchMessages, 2500);
     });
 </script>
 {% endblock %}
