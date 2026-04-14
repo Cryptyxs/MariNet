@@ -13,3 +13,5 @@ python-dotenv
 email-validator
 pytz
 flask-socketio
+psycopg2-binary
+gunicorn

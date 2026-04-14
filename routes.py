@@ -97,16 +97,12 @@ def process_mentions(content, post=None, group_post=None):
     if not content:
         return
     
-    print(f"Processing mentions in: {content}")
-    
     mentions = re.findall(r'@(\w+)', content)
-    print(f"Found mentions: {mentions}")
     
     for username in mentions:
         mentioned_user = User.query.filter_by(username=username).first()
         
         if mentioned_user and mentioned_user.id != current_user.id:
-            print(f"Creating notification for user: {mentioned_user.username} (ID: {mentioned_user.id})")
             post_type = "post" if post else "group post"
             notification_text = f"{current_user.username} mentioned you in a {post_type}"
             
@@ -121,13 +117,12 @@ def process_mentions(content, post=None, group_post=None):
             
             db.session.add(new_notification)
         elif not mentioned_user:
-            print(f"User not found: @{username}")
+            pass
         elif mentioned_user.id == current_user.id:
-            print(f"Skipping self-mention: @{username}")
+            pass
     
     if mentions:
         db.session.commit()
-        print("Committed notifications to database")
 
 # Auth routes
 @app.route('/login', methods=['GET', 'POST'])
@@ -801,7 +796,6 @@ def terms_offline():
 @login_required
 def unread_notifications_count():
     count = Notification.query.filter_by(user_id=current_user.id, is_read=False).count()
-    print(f"Unread notifications for user {current_user.username} (ID: {current_user.id}): {count}")
     return jsonify({'count': count})
 
 

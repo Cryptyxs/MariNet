@@ -9,21 +9,44 @@ import uuid
 import requests
 import json
 import pytz
+from dotenv import load_dotenv
 
+# Load environment variables
+load_dotenv('.env.local')
+
+# Initialize Flask app
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///marinet.db'
+
+# Configuration from environment variables
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-change-in-production')
+database_url = os.getenv('DATABASE_URL')
+
+# Handle SQLAlchemy 1.4+ compatibility with PostgreSQL
+if database_url and database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///marinet.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
-app.config['GEMINI_API_KEY'] = 'ADD_YOUR_GEMINI_KEY'
 
+# API Keys from environment variables
+app.config['GEMINI_API_KEY'] = os.getenv('GEMINI_API_KEY')
+app.config['QWEN_API_KEY'] = os.getenv('QWEN_API_KEY')
+
+# Create upload folder if it doesn't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
+# Initialize SQLAlchemy
 db = SQLAlchemy(app)
+
+# Initialize Flask-Login
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
+login_manager.login_message = 'Please log in to access this page.'
+login_manager.login_message_category = 'info'
 
+# AI Response templates
 AI_RESPONSES = {
     "default": [
         "That's an interesting question. Let me help you understand this better.",
@@ -62,29 +85,14 @@ AI_RESPONSES = {
     ]
 }
 
-@app.route('/group/<group_id>')
-@login_required
-def group(group_id):
-    group = Group.query.get_or_404(group_id)
-    return render_template('group.html', group=group)
-
-@app.context_processor
-def inject_popular_groups():
-    def get_popular_groups(limit=3):
-        groups = Group.query.all()
-        groups_sorted = sorted(
-            groups,
-            key=lambda g: g.members.count(),
-            reverse=True
-        )
-        return groups_sorted[:limit]
-    return dict(get_popular_groups=get_popular_groups)
-
+# Helper function for EST timezone
 def get_est_time():
     utc_now = datetime.utcnow()
     eastern = pytz.timezone('US/Eastern')
     est_now = utc_now.replace(tzinfo=pytz.utc).astimezone(eastern)
     return est_now
+
+# Database Models
 group_members = db.Table('group_members',
     db.Column('user_id', db.String(36), db.ForeignKey('user.id'), primary_key=True),
     db.Column('group_id', db.String(36), db.ForeignKey('group.id'), primary_key=True),
@@ -92,7 +100,6 @@ group_members = db.Table('group_members',
     db.Column('joined_at', db.DateTime, default=get_est_time)
 )
 
-# Models
 class User(db.Model, UserMixin):
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -117,12 +124,12 @@ class Post(db.Model):
     user_id = db.Column(db.String(36), db.ForeignKey('user.id'), nullable=False)
     upvotes = db.Column(db.Integer, default=0)
     downvotes = db.Column(db.Integer, default=0)
-    
+
 class Tag(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(64), unique=True, nullable=False)
     count = db.Column(db.Integer, default=1)
-    
+
 class Group(db.Model):
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name = db.Column(db.String(100), nullable=False)
@@ -147,7 +154,6 @@ class Group(db.Model):
         ).first()
         return membership and membership.is_admin if membership else False
 
-    
 class GroupPost(db.Model):
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     content = db.Column(db.Text, nullable=False)
@@ -157,7 +163,7 @@ class GroupPost(db.Model):
     group_id = db.Column(db.String(36), db.ForeignKey('group.id'), nullable=False)
     upvotes = db.Column(db.Integer, default=0)
     downvotes = db.Column(db.Integer, default=0)
-    
+
 class Vote(db.Model):
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     post_id = db.Column(db.String(36), db.ForeignKey('post.id'), nullable=True)
@@ -196,7 +202,6 @@ class Notification(db.Model):
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=get_est_time)
     
-    # Relationships
     user = db.relationship('User', foreign_keys=[user_id], backref=db.backref('notifications', lazy='dynamic'))
     sender = db.relationship('User', foreign_keys=[sender_id])
     post = db.relationship('Post', backref=db.backref('notifications', lazy=True), foreign_keys=[post_id])
@@ -206,17 +211,19 @@ class Notification(db.Model):
 def load_user(user_id):
     return User.query.get(user_id)
 
-# GEMINI API STUFF
+# Gemini API integration
 def generate_ai_response(user_message, conversation_history=None):
-    api_key = app.config['GEMINI_API_KEY']
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+    api_key = app.config.get('GEMINI_API_KEY')
     
-    parts = [{"text": user_message}]
+    if not api_key:
+        return "API key not configured. Please set GEMINI_API_KEY environment variable."
+    
+    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
     
     payload = {
         "contents": [
             {
-                "parts": parts
+                "parts": [{"text": user_message}]
             }
         ]
     }
@@ -225,90 +232,58 @@ def generate_ai_response(user_message, conversation_history=None):
         response = requests.post(
             api_url,
             headers={"Content-Type": "application/json"},
-            data=json.dumps(payload)
+            data=json.dumps(payload),
+            timeout=10
         )
         
         if response.status_code == 200:
             response_data = response.json()
-            print("Gemini API response:", response_data)  # Debug
-            
             ai_response = response_data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
             
             if not ai_response:
-                return "I'm sorry, I couldn't generate a response at the moment. Could you try rephrasing your question?"
+                return "I couldn't generate a response. Please try rephrasing your question."
             
             return ai_response
         else:
-            print(f"Gemini API error: {response.status_code} - {response.text}")
-            return "I'm having trouble connecting to my knowledge base right now. Please try again in a moment."
+            return "I'm having trouble connecting to my knowledge base. Please try again in a moment."
     
+    except requests.exceptions.Timeout:
+        return "Request timed out. Please try again."
     except Exception as e:
-        print(f"Error using Gemini API: {str(e)}")
-        return "Sorry, I encountered an error while processing your request. Please try again later."
+        app.logger.error(f"Gemini API error: {str(e)}")
+        return "Sorry, I encountered an error. Please try again later."
 
+# Import routes after app initialization
 from routes import *
 
-# ADMIN CREDS FOR TESTING
-with app.app_context():
-    db.create_all()
-    admin = User.query.filter_by(email='admin@marinet.edu').first()
-    if not admin:
-        admin = User(
-            username='admin',
-            email='admin@marinet.edu',
-            password=generate_password_hash('admin123'),
-            avatar_url='/static/default_admin_avatar.jpg'
-        )
-        db.session.add(admin)
-        db.session.commit()  
-        
-        # Sample groups data
-        groups = [
-            {
-                'name': 'K-Pop Club',
-                'description': 'For fans of K-Pop music and culture.',
-                'icon': 'music-note'
-            },
-            {
-                'name': 'Science Club',
-                'description': 'Discuss scientific discoveries and experiments.',
-                'icon': 'lightbulb'
-            },
-            {
-                'name': 'Environmental Awareness Club',
-                'description': 'Promote environmental awareness and sustainability.',
-                'icon': 'tree'
-            }
-        ]
-        
-        admin = User.query.filter_by(email='admin@marinet.edu').first()
-        
-        for group_data in groups:
-            group = Group(
-                name=group_data['name'],
-                description=group_data['description'],
-                icon=group_data['icon'],
-                created_by=admin.id
+# Context processor for popular groups
+@app.context_processor
+def inject_popular_groups():
+    def get_popular_groups(limit=3):
+        try:
+            groups = Group.query.all()
+            groups_sorted = sorted(
+                groups,
+                key=lambda g: g.members.count(),
+                reverse=True
             )
-            db.session.add(group)
-        
-        db.session.commit()
-        
-        for group in Group.query.all():
-            stmt = group_members.insert().values(
-                user_id=admin.id,
-                group_id=group.id,
-                is_admin=True
-            )
-            db.session.execute(stmt)
-        
-        db.session.commit()
+            return groups_sorted[:limit]
+        except Exception as e:
+            app.logger.error(f"Error fetching popular groups: {str(e)}")
+            return []
+    return dict(get_popular_groups=get_popular_groups)
 
-app.run(debug=True)
+# Error handlers
+@app.errorhandler(404)
+def not_found_error(error):
+    return render_template('404.html'), 404
 
-@app.template_filter('nl2br')
-def nl2br(text):
-    """Convert newlines to <br> tags"""
-    if not text:
-        return ""
-    return text.replace('\n', '<br>') 
+@app.errorhandler(500)
+def internal_error(error):
+    db.session.rollback()
+    return render_template('500.html'), 500
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+    app.run(debug=False)
