@@ -135,31 +135,3 @@ function previewImage(inputId, imgId) {
     });
 } 
 
-document.addEventListener('DOMContentLoaded', function() {
-    const savedTheme = localStorage.getItem('theme') || 
-                      (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    
-    document.documentElement.setAttribute('data-theme', savedTheme);
-    updateThemeIcon(savedTheme);
-    
-    document.getElementById('theme-toggle').addEventListener('click', function() {
-        const currentTheme = document.documentElement.getAttribute('data-theme');
-        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-        
-        localStorage.setItem('theme', newTheme);
-        
-        document.documentElement.setAttribute('data-theme', newTheme);
-        updateThemeIcon(newTheme);
-    });
-    
-    function updateThemeIcon(theme) {
-        const icon = document.getElementById('theme-toggle-icon');
-        if (theme === 'dark') {
-            icon.classList.remove('bi-moon');
-            icon.classList.add('bi-sun');
-        } else {
-            icon.classList.remove('bi-sun');
-            icon.classList.add('bi-moon');
-        }
-    }
-});

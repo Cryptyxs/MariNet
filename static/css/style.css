@@ -855,23 +855,7 @@ img.avatar, img.avatar-sm, img.avatar-small, img.profile-avatar {
     --border-color: #e9ecef;
 }
 
-[data-theme="dark"] {
-    --primary-color: #3b82f6;
-    --secondary-color: #1e293b;
-    
-    --bg-main: #131a27;
-    --bg-card: #1e293b;
-    --bg-sidebar: #1a2232;
-    --text-main: #f3f4f6;
-    --text-secondary: #b1b1b1;
-    --border-color: #2d3748;
-    
-    --dark-color: #f3f4f6;
-    --light-color: #1e293b;
-    --gray-color: #b1b1b1;
-    --gray-light-color: #2d3748;
-    --box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2);
-}   
+   
 
 
 body {
@@ -1003,30 +987,3 @@ a {
     border-top: 1px solid var(--border-color);
 }
 
-.theme-toggle {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background-color: var(--bg-card);
-    color: var(--text-main);
-    border: 1px solid var(--border-color);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: var(--transition);
-    box-shadow: var(--box-shadow);
-    margin-top: 50px;
-}
-
-.theme-toggle:hover {
-    background-color: var(--secondary-color);
-}
-
-.theme-toggle-container {
-    display: flex;
-    justify-content: center;
-    padding: 10px 0;
-    margin: 0 0.75rem;
-    border-bottom: 1px solid var(--border-color);
-}
