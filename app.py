@@ -9,6 +9,7 @@ import uuid
 import requests
 import json
 import pytz
+import re
 from dotenv import load_dotenv
 from markupsafe import Markup, escape
 
@@ -143,6 +144,42 @@ class User(db.Model, UserMixin):
     
     def __repr__(self):
         return f'<User {self.username}>'
+
+@app.template_filter('mention_links')
+def mention_links_filter(value):
+    if not value:
+        return ''
+
+    text = str(value)
+    pattern = re.compile(r'@([A-Za-z0-9_]+)')
+    usernames = {m.group(1) for m in pattern.finditer(text)}
+
+    existing_users = {}
+    if usernames:
+        users = User.query.filter(User.username.in_(list(usernames))).all()
+        existing_users = {u.username: u for u in users}
+
+    parts = []
+    last_index = 0
+    for match in pattern.finditer(text):
+        start, end = match.span()
+        username = match.group(1)
+
+        parts.append(str(escape(text[last_index:start])))
+
+        user = existing_users.get(username)
+        if user:
+            profile_url = url_for('profile', user_id=user.id)
+            parts.append(
+                f'<a href="{profile_url}" class="mention-link">@{escape(username)}</a>'
+            )
+        else:
+            parts.append(str(escape(match.group(0))))
+
+        last_index = end
+
+    parts.append(str(escape(text[last_index:])))
+    return Markup(''.join(parts).replace('\n', '<br>\n'))
 
 class UserAvatar(db.Model):
     user_id = db.Column(db.String(36), db.ForeignKey('user.id'), primary_key=True)

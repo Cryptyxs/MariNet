@@ -987,6 +987,17 @@ a {
     border-top: 1px solid var(--border-color);
 }
 
+.mention-link {
+    color: #2563eb;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.mention-link:hover {
+    color: #1d4ed8;
+    text-decoration: underline;
+}
+
 /* Landing page (guest home) */
 .landing-page {
     position: relative;

@@ -74,7 +74,7 @@
                                 <small class="card-title">{{ post.created_at.strftime('%b %d, %Y at %I:%M %p') }}</small>
                             </div>
                         </div>
-                        <p class="card-text">{{ post.content }}</p>
+                        <p class="card-text">{{ post.content|mention_links }}</p>
                         {% if post.image_url %}
                         <div class="post-image mb-3">
                             <img src="{{ post.image_url }}" alt="Post image" class="img-fluid rounded">
