@@ -281,11 +281,39 @@ def choose_best_gemini_model(preferred_model, models):
         if preferred and preferred in m:
             return m
 
-    for m in models:
-        if 'flash' in m:
-            return m
+    # Prefer lower-cost models first when auto-selecting.
+    priority_markers = [
+        'flash-lite',
+        'flash_8b',
+        'flash-8b',
+        '1.5-flash-8b',
+        'flash'
+    ]
+
+    for marker in priority_markers:
+        for m in models:
+            if marker in m.lower():
+                return m
 
     return models[0]
+
+def get_low_cost_model_candidates(models, current_model):
+    current = normalize_gemini_model_name(current_model)
+    candidates = [m for m in models if normalize_gemini_model_name(m) != current]
+
+    def score(name):
+        n = name.lower()
+        if 'flash-lite' in n:
+            return 0
+        if 'flash-8b' in n or 'flash_8b' in n or '1.5-flash-8b' in n:
+            return 1
+        if 'flash' in n:
+            return 2
+        if 'pro' in n:
+            return 4
+        return 3
+
+    return sorted(candidates, key=score)
 
 def call_gemini_generate(api_key, model, user_message, api_version='v1beta'):
     api_url = f"https://generativelanguage.googleapis.com/{api_version}/models/{model}:generateContent"
@@ -355,6 +383,20 @@ def generate_ai_response(user_message, conversation_history=None):
                 error_message = error_json.get('error', {}).get('message', error_message)
             except Exception:
                 pass
+
+            lowered_error = error_message.lower()
+            if 'spending cap' in lowered_error or 'insufficient quota' in lowered_error or 'quota' in lowered_error:
+                available = list_generate_content_models(api_key, api_version='v1beta')
+                for candidate in get_low_cost_model_candidates(available, model):
+                    retry_response = call_gemini_generate(api_key, candidate, user_message, api_version='v1beta')
+                    if retry_response.status_code == 200:
+                        app.logger.warning(f"Recovered from quota/cap error by switching model to '{candidate}'")
+                        app.config['GEMINI_MODEL_RESOLVED'] = candidate
+                        response_data = retry_response.json()
+                        ai_response = response_data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                        if ai_response:
+                            return ai_response
+
             app.logger.error(
                 f"Gemini API non-200 response ({response.status_code}) model='{model}': {error_message}"
             )
