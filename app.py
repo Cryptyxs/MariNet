@@ -10,12 +10,20 @@ import requests
 import json
 import pytz
 from dotenv import load_dotenv
+from markupsafe import Markup, escape
 
 # Load environment variables
 load_dotenv('.env.local')
 
 # Initialize Flask app
 app = Flask(__name__)
+
+@app.template_filter('nl2br')
+def nl2br_filter(value):
+    if value is None:
+        return ''
+    escaped = escape(value)
+    return Markup(str(escaped).replace('\n', '<br>\n'))
 
 # Configuration from environment variables
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-change-in-production')
